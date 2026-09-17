@@ -18,3 +18,7 @@ async fn main() -> std::process::ExitCode {
 fn some_func() {
     todo!();
 }
+
+fn some_other_func() {
+    todo!();
+}
