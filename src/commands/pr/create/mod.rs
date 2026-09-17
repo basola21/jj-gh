@@ -4,16 +4,17 @@ use crate::{
     editor::{self, ApplyChangesCtx},
     frontmatter::Frontmatter,
     fs::RealFs,
-    gh::{CreatePrRequest, Gh, remote},
+    gh::{remote, CreatePrRequest, Gh},
     jj::{
-        self, Jj,
-        inject::{TemplateAliases, quote_jj},
+        self,
+        inject::{quote_jj, TemplateAliases},
+        Jj,
     },
     model::Model,
     template::{self, TemplateSource},
     ui::{PrLinks, Stream},
 };
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{anyhow, bail, Context, Result};
 use jj_gh_config_derive::subcommand_args;
 use std::collections::HashMap;
 
@@ -211,6 +212,11 @@ pub async fn run(model: &impl Model, args: &CreateArgs) -> Result<()> {
         // title source
         default_title_source,
     } = args;
+
+    // early bail if no revision id is given, idea for later for auto pr detection on current rev
+    if revs.is_empty() {
+        bail!("no revision given; pass at least one, e.g. `jj-gh pr create @`");
+    }
 
     let upstream_remote = crate::gh::remote::resolved_upstream_remote(upstream_remote);
     let (remote, target) = model.resolve_target(remote, Some(upstream_remote)).await?;
