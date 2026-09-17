@@ -4,17 +4,16 @@ use crate::{
     editor::{self, ApplyChangesCtx},
     frontmatter::Frontmatter,
     fs::RealFs,
-    gh::{remote, CreatePrRequest, Gh},
+    gh::{CreatePrRequest, Gh, remote},
     jj::{
-        self,
-        inject::{quote_jj, TemplateAliases},
-        Jj,
+        self, Jj,
+        inject::{TemplateAliases, quote_jj},
     },
     model::Model,
     template::{self, TemplateSource},
     ui::{PrLinks, Stream},
 };
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use jj_gh_config_derive::subcommand_args;
 use std::collections::HashMap;
 
@@ -167,6 +166,15 @@ subcommand_args! {
     }
 }
 
+/// Reject a `pr create` invocation with no revision, so a bare `jj-gh pr
+/// create` fails loudly instead of silently doing nothing.
+fn require_revs(revs: &[String]) -> Result<()> {
+    if revs.is_empty() {
+        bail!("no revision given; pass at least one, e.g. `jj-gh pr create @`");
+    }
+    Ok(())
+}
+
 /// Run the full pr-create flow.
 ///
 /// # Errors
@@ -213,10 +221,7 @@ pub async fn run(model: &impl Model, args: &CreateArgs) -> Result<()> {
         default_title_source,
     } = args;
 
-    // early bail if no revision id is given, idea for later for auto pr detection on current rev
-    if revs.is_empty() {
-        bail!("no revision given; pass at least one, e.g. `jj-gh pr create @`");
-    }
+    require_revs(revs)?;
 
     let upstream_remote = crate::gh::remote::resolved_upstream_remote(upstream_remote);
     let (remote, target) = model.resolve_target(remote, Some(upstream_remote)).await?;
@@ -778,6 +783,17 @@ async fn load_template_for(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn require_revs_rejects_empty_list() {
+        let err = require_revs(&[]).unwrap_err();
+        assert!(err.to_string().contains("no revision given"));
+    }
+
+    #[test]
+    fn require_revs_accepts_nonempty_list() {
+        assert!(require_revs(&["@".to_string()]).is_ok());
+    }
 
     #[test]
     fn title_candidate_requires_single_nonempty_line() {
